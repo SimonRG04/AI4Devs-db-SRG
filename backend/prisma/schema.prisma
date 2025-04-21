@@ -14,6 +14,42 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
+// Enums
+enum PositionStatus {
+  OPEN
+  CLOSED
+  DRAFT
+  ARCHIVED
+}
+
+enum ApplicationStatus {
+  APPLIED
+  SCREENING
+  INTERVIEWING
+  OFFERED
+  HIRED
+  REJECTED
+  WITHDRAWN
+}
+
+enum InterviewResult {
+  PENDING
+  PASSED
+  FAILED
+  NO_SHOW
+  RESCHEDULED
+  CANCELLED
+}
+
+enum EmploymentType {
+  FULL_TIME
+  PART_TIME
+  CONTRACT
+  FREELANCE
+  INTERNSHIP
+}
+
+// Modelos existentes mejorados
 model Candidate {
   id                Int               @id @default(autoincrement())
   firstName         String            @db.VarChar(100)
@@ -24,6 +60,13 @@ model Candidate {
   educations        Education[]
   workExperiences   WorkExperience[]
   resumes           Resume[]
+  applications      Application[]
+  createdAt         DateTime          @default(now())
+  updatedAt         DateTime          @default(now())
+  deletedAt         DateTime?
+
+  @@index([email])
+  @@index([firstName, lastName])
 }
 
 model Education {
@@ -54,4 +97,149 @@ model Resume {
   uploadDate  DateTime
   candidateId Int
   candidate   Candidate @relation(fields: [candidateId], references: [id])
+}
+
+// Nuevos modelos según el diagrama ERD
+model Company {
+  id                Int         @id @default(autoincrement())
+  name              String      @unique @db.VarChar(100)
+  description       String?
+  logo              String?     @db.VarChar(500)
+  website           String?     @db.VarChar(255)
+  employees         Employee[]
+  positions         Position[]
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @default(now())
+  deletedAt         DateTime?
+
+  @@index([name])
+}
+
+model Employee {
+  id          Int         @id @default(autoincrement())
+  companyId   Int
+  name        String      @db.VarChar(200)
+  email       String      @unique @db.VarChar(255)
+  role        String      @db.VarChar(100)
+  isActive    Boolean     @default(true)
+  company     Company     @relation(fields: [companyId], references: [id])
+  interviews  Interview[]
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @default(now())
+  deletedAt   DateTime?
+
+  @@index([companyId])
+  @@index([email])
+}
+
+model InterviewType {
+  id            Int             @id @default(autoincrement())
+  name          String          @unique @db.VarChar(100)
+  description   String?
+  interviewSteps InterviewStep[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now())
+}
+
+model InterviewFlow {
+  id            Int             @id @default(autoincrement())
+  name          String          @unique @db.VarChar(100)
+  description   String?
+  interviewSteps InterviewStep[]
+  positions     Position[]
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @default(now())
+}
+
+model InterviewStep {
+  id              Int           @id @default(autoincrement())
+  interviewFlowId Int
+  interviewTypeId Int
+  name            String        @db.VarChar(100)
+  orderIndex      Int
+  interviewFlow   InterviewFlow @relation(fields: [interviewFlowId], references: [id])
+  interviewType   InterviewType @relation(fields: [interviewTypeId], references: [id])
+  interviews      Interview[]
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @default(now())
+
+  @@unique([interviewFlowId, orderIndex])
+  @@index([interviewFlowId])
+  @@index([interviewTypeId])
+}
+
+model Position {
+  id                 Int             @id @default(autoincrement())
+  companyId          Int
+  interviewFlowId    Int
+  title              String          @db.VarChar(100)
+  description        String?
+  status             PositionStatus  @default(DRAFT)
+  isVisible          Boolean         @default(false)
+  location           String?         @db.VarChar(100)
+  jobDescription     String?
+  requirements       String?
+  responsibilities   String?
+  salaryMin          Decimal?        @db.Decimal(10, 2)
+  salaryMax          Decimal?        @db.Decimal(10, 2)
+  employmentType     EmploymentType  @default(FULL_TIME)
+  benefits           String?
+  companyDescription String?
+  applicationDeadline DateTime?
+  contactInfo        String?         @db.VarChar(255)
+  company            Company         @relation(fields: [companyId], references: [id])
+  interviewFlow      InterviewFlow   @relation(fields: [interviewFlowId], references: [id])
+  applications       Application[]
+  createdAt          DateTime        @default(now())
+  updatedAt          DateTime        @default(now())
+  deletedAt          DateTime?
+
+  @@index([companyId])
+  @@index([status])
+  @@index([title])
+  @@index([location])
+  @@index([isVisible])
+}
+
+model Application {
+  id               Int               @id @default(autoincrement())
+  positionId       Int
+  candidateId      Int
+  applicationDate  DateTime          @default(now())
+  status           ApplicationStatus @default(APPLIED)
+  notes            String?
+  position         Position          @relation(fields: [positionId], references: [id])
+  candidate        Candidate         @relation(fields: [candidateId], references: [id])
+  interviews       Interview[]
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @default(now())
+  deletedAt        DateTime?
+
+  @@unique([candidateId, positionId], name: "unique_candidate_position_application")
+  @@index([candidateId])
+  @@index([positionId])
+  @@index([status])
+  @@index([applicationDate])
+}
+
+model Interview {
+  id               Int             @id @default(autoincrement())
+  applicationId    Int
+  interviewStepId  Int
+  employeeId       Int
+  interviewDate    DateTime
+  result           InterviewResult @default(PENDING)
+  score            Int?
+  notes            String?
+  application      Application     @relation(fields: [applicationId], references: [id])
+  interviewStep    InterviewStep   @relation(fields: [interviewStepId], references: [id])
+  employee         Employee        @relation(fields: [employeeId], references: [id])
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @default(now())
+
+  @@index([applicationId])
+  @@index([interviewStepId])
+  @@index([employeeId])
+  @@index([interviewDate])
+  @@index([result])
 }
